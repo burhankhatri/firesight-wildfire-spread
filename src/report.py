@@ -13,7 +13,7 @@ import pandas as pd
 import shap
 
 from .config import FIG_DIR, MODEL_DIR, OUT_DIR, PRETTY, SEED
-from .data import build_table, load_tiles
+from .data import build_table, distinct_fires, load_tiles
 from .features import FEATURES, engineer
 from .style import apply_style, MODEL_COLORS, FIRE, CALM
 
@@ -108,7 +108,7 @@ def fig_ablation(res):
     ax.bar(x - 0.2, [o[m] for m in mets], 0.4, color=CALM, label="Original 12 inputs")
     ax.bar(x + 0.2, [e[m] for m in mets], 0.4, color=FIRE, label="+ 12 engineered features")
     for i, m in enumerate(mets):
-        ax.text(i + 0.2, e[m] + 0.01, f"+{100 * (e[m] - o[m]) / max(o[m], 1e-9):.0f}%",
+        ax.text(i + 0.2, e[m] + 0.01, f"{100 * (e[m] - o[m]) / max(o[m], 1e-9):+.0f}%",
                 ha="center", fontsize=8)
     ax.set_xticks(x, ["Precision", "Recall", "F1", "AUC-PR"])
     ax.set_title(f"Feature ablation ({ab['model']})")
@@ -149,13 +149,7 @@ def fig_maps(res, n=5):
     tile, row, col = tp["tile"], tp["row"], tp["col"]
     fire_per_tile = np.bincount(tile, weights=tp["y"])
     t = load_tiles("test")
-    picks, sigs = [], []  # skip overlapping crops of the same fire
-    for k in np.argsort(fire_per_tile)[::-1][3:]:
-        sig = (float(t["tmmx"][k].mean()), float(t["elevation"][k].mean()))
-        if all(abs(sig[0] - a) > 1 or abs(sig[1] - b) > 150 for a, b in sigs):
-            picks.append(int(k)); sigs.append(sig)
-        if len(picks) == n:
-            break
+    picks = sorted(distinct_fires(t, np.argsort(fire_per_tile)[::-1][3:], n))
     cols = ["Fire today", "Actual fire tomorrow", f"{best} probability", f"{best} prediction",
             "Logistic Reg. probability"]
     fig, axes = plt.subplots(n, 5, figsize=(12, 2.5 * n))

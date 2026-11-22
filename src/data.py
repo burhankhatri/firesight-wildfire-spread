@@ -90,3 +90,26 @@ def build_table(split, mode="all", neg_ratio=3, max_neg_frac=None, limit=None, s
                     mask.flat[rng.choice(cand, k, replace=False)] = True
         parts.append(_to_rows(f, y, off, mask))
     return pd.concat(parts, ignore_index=True)
+
+
+def _same_fire(a, b, min_overlap=0.6):
+    """True if binary fire masks a and b match after some 2-D shift
+    (overlapping 64 km crops of one large fire)."""
+    from scipy.signal import fftconvolve
+    sa, sb = a.sum(), b.sum()
+    if sa == 0 or sb == 0:
+        return False
+    corr = fftconvolve(a, b[::-1, ::-1], mode="full")
+    return corr.max() / max(sa, sb) >= min_overlap
+
+
+def distinct_fires(tiles, candidates, n):
+    """First n candidate tiles whose next-day fire masks are not shifted copies of each other."""
+    picks = []
+    for k in candidates:
+        m = (tiles["FireMask"][k] == 1).astype(np.float32)
+        if not any(_same_fire(m, (tiles["FireMask"][p] == 1).astype(np.float32)) for p in picks):
+            picks.append(int(k))
+        if len(picks) == n:
+            break
+    return picks

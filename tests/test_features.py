@@ -47,3 +47,13 @@ def test_wind_components_point_downwind():
 def test_temp_range():
     f = engineer(_batch())
     assert np.allclose(f["temp_range"], 20)
+
+
+def test_distinct_fires_drops_shifted_copies():
+    from src.data import distinct_fires
+    a = np.zeros((3, 64, 64), np.float32)
+    a[0, 20:30, 20:35] = 1          # fire 1
+    a[1, 25:35, 10:25] = 1          # same fire, shifted crop
+    a[2, 40:44, 40:60] = 1          # a different fire
+    t = {"FireMask": a}
+    assert distinct_fires(t, [0, 1, 2], n=3) == [0, 2]

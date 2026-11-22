@@ -6,3 +6,5 @@ __pycache__/
 outputs/test_probs.npz
 .vercel
 .DS_Store
+site/dist/
+site/.vercel/

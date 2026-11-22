@@ -40,7 +40,7 @@ Random forest 22.5/26.3/46.9; Logistic regression 19.8/32.5/35.3; Persistence 11
 | Features | Prec | Rec | F1 | AUC-PR |
 |---|---|---|---|---|
 | Original 12 | 0.368 | 0.270 | 0.311 | 0.163 |
-| 24 (with engineered) | 0.264 | 0.491 | 0.343 | 0.258 (+58%) |
+| 24 (with engineered) | 0.264 | 0.491 | 0.343 | 0.258 (+59%) |
 
 ## SHAP (XGBoost, 4,000 test pixels), mean |SHAP|
 distance to fire 0.870; fire density 7 km 0.206; fire density 3 km 0.184; elevation 0.170; ERC 0.169;
@@ -49,13 +49,14 @@ Spearman correlation with target (balanced sample): fire_density_7 0.51, fire_de
 upwind_fire_2 0.48, fire_front_wind 0.47, fire_density_15 0.43, prev_fire 0.38.
 
 ## Digital twin (Logistic Regression, 4 distinct growing test fires; predicted km2 above threshold)
-| Fire | Real | Wind x0.5 / x1.5 / x2 | Wind rotated min-max | +2 C | +4 C |
+Distinct = next-day masks not shifted copies (FFT cross-correlation overlap < 0.6 of the larger fire).
+| Fire | Real | Wind x2 | Wind rotated min-max | +2 C | +4 C |
 |---|---|---|---|---|---|
-| 438 | 248 | 241 / 245 / 243 | 242-283 | 261 | 290 |
-| 316 | 168 | 163 / 167 / 171 | 166-198 | 181 | 205 |
-| 406 | 244 | 238 / 237 / 229 | 239-279 | 256 | 282 |
-| 399 | 301 | 250 / 404 / 1082 | 253-355 | 335 | 380 |
-Mean: today 240, +2 C 258 (+7.5%), +4 C 289 (+20.4%).
+| A (438) | 248 | 243 | 242-283 | 261 | 290 |
+| B (399) | 301 | 1082 | 253-355 | 335 | 380 |
+| C (529) | 110 | 167 | 95-133 | 121 | 134 |
+| D (369) | 45 | 109 | 43-57 | 54 | 67 |
+Mean: today 176, +2 C 193 (+9.5%), +4 C 218 (+23.7%); wind x2 mean 400.
 Warming = +dT on tmin/tmax, +2 ERC per C, humidity x(1-0.03 per C), PDSI -0.25 per C.
 Negative result: first version multiplied ERC by 1.25; tree models (XGBoost/LightGBM) then
 predicted LESS fire (312 -> 208 km2, LightGBM 213 -> 49) because inputs left the training range;

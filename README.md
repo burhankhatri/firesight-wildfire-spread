@@ -5,7 +5,7 @@ It uses 18,545 real fires whose satellite and weather layers were built in Googl
 24 physics-informed features, five tuned ML models and an interactive **digital twin** for wind and
 climate-warming what-if scenarios.
 
-**Live demo:** LIVE_URL · **Paper:** [`paper/FireSight_Paper.pdf`](paper/FireSight_Paper.pdf) · **Slides:** [`slides/FireSight_Slides.pdf`](slides/FireSight_Slides.pdf) · **Notebook:** [`FireSight.ipynb`](FireSight.ipynb)
+**Live demo:** https://firesight-wildfire.vercel.app · **Paper:** [`paper/FireSight_Paper.pdf`](paper/FireSight_Paper.pdf) · **Slides:** [`slides/FireSight_Slides.pdf`](slides/FireSight_Slides.pdf) · **Notebook:** [`FireSight.ipynb`](FireSight.ipynb)
 
 ## Results (6.7 million unseen test pixels, 1.25% fire)
 
@@ -18,9 +18,9 @@ climate-warming what-if scenarios.
 | LightGBM | 0.237 | 0.465 | 0.314 | 0.215 | 0.845 |
 | MLP (Neural Net) | 0.198 | 0.362 | 0.256 | 0.116 | 0.790 |
 
-* The engineered features raise Random Forest AUC-PR by **58%** (0.163 → 0.258).
+* The engineered features raise Random Forest AUC-PR by **59%** (0.163 → 0.258).
 * Our Random Forest (25.8% AUC-PR) beats the original paper's Random Forest (22.5%) on a laptop CPU.
-* Digital twin: predicted area at risk grows **+7.5% at +2 °C** and **+20.4% at +4 °C**.
+* Digital twin: predicted area at risk grows **+9.5% at +2 °C** and **+23.7% at +4 °C**.
 
 ![maps](outputs/figures/results_maps.png)
 

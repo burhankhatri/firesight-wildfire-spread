@@ -81,8 +81,10 @@ def feature_views(df):
             ax.hist(df.loc[df.y == lab, v].clip(lo, hi), bins=bins, density=True, alpha=0.55,
                     color=col, label=name)
         ax.set_title(PRETTY[v]); ax.set_yticks([])
+        ax.tick_params(axis="x", labelsize=7)
     axes[0, 0].legend(frameon=False)
     fig.suptitle("Weather and fuel conditions: fire pixels vs non-fire pixels")
+    fig.tight_layout()
     fig.savefig(FIG_DIR / "eda_distributions.png")
     plt.close(fig)
 

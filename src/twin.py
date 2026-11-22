@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from .config import FIG_DIR, MODEL_DIR, OUT_DIR
-from .data import load_tiles
+from .data import distinct_fires, load_tiles
 from .features import FEATURES, engineer
 from .style import apply_style
 
@@ -62,13 +62,7 @@ def pick_tiles(n=4):
     prev = (t["PrevFireMask"] == 1).sum((1, 2))
     nxt = (t["FireMask"] == 1).sum((1, 2))
     ok = np.flatnonzero((prev >= 15) & (prev <= 150) & (nxt > 1.3 * prev))
-    picks, sigs = [], []
-    for k in ok[np.argsort(-(nxt[ok] - prev[ok]))]:
-        sig = (float(t["tmmx"][k].mean()), float(t["elevation"][k].mean()))
-        if all(abs(sig[0] - a) > 1 or abs(sig[1] - b) > 150 for a, b in sigs):
-            picks.append(int(k)); sigs.append(sig)
-        if len(picks) == n:
-            break
+    picks = distinct_fires(t, ok[np.argsort(-(nxt[ok] - prev[ok]))], n)
     return t, picks
 
 
