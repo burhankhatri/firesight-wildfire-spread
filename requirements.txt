@@ -1,0 +1,15 @@
+numpy
+pandas
+scipy
+zarr<3
+scikit-learn
+xgboost
+lightgbm
+shap
+matplotlib
+seaborn
+joblib
+jupyter
+nbformat
+nbconvert
+pytest

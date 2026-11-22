@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FireSight: Next-Day Wildfire Spread</title>
+<meta name="description" content="Predicting where a wildfire will burn tomorrow from Google Earth Engine satellite data, with five machine learning models and a digital twin.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#fbf8f4;--panel:#fff;--ink:#1d1a17;--muted:#6b635b;--line:#e8e0d6;--fire:#e4572e;--fire2:#f2a541;--calm:#4c78a8;--shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(60,30,10,.06)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14110f;--panel:#1d1916;--ink:#f3ece4;--muted:#a89d92;--line:#2f2924;--shadow:none}}
+:root[data-theme="dark"]{--bg:#14110f;--panel:#1d1916;--ink:#f3ece4;--muted:#a89d92;--line:#2f2924;--shadow:none}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Inter,system-ui,sans-serif}
+a{color:var(--fire)}
+.wrap{max-width:1100px;margin:0 auto;padding:0 16px}
+header.hero{padding:72px 0 40px;border-bottom:1px solid var(--line);background:radial-gradient(1200px 400px at 80% -10%,rgba(228,87,46,.18),transparent 60%)}
+.eyebrow{font:600 12px/1 'JetBrains Mono',monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--fire)}
+h1{font-size:clamp(36px,6vw,64px);line-height:1.02;margin:14px 0 16px;letter-spacing:-.03em;font-weight:800}
+h1 span{background:linear-gradient(90deg,var(--fire),var(--fire2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.lede{font-size:19px;color:var(--muted);max-width:720px}
+.btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:24px}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);text-decoration:none;font-weight:600;font-size:14px;box-shadow:var(--shadow)}
+.btn.primary{background:var(--fire);border-color:var(--fire);color:#fff}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:36px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:var(--shadow)}
+.kpi b{display:block;font-size:28px;letter-spacing:-.02em}
+.kpi small{color:var(--muted);font-size:13px}
+section{padding:56px 0;border-bottom:1px solid var(--line)}
+h2{font-size:30px;letter-spacing:-.02em;margin:0 0 8px}
+.sub{color:var(--muted);margin:0 0 24px;max-width:760px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:0 0 6px;font-size:17px}
+.card p{margin:0;color:var(--muted);font-size:14.5px}
+figure{margin:0}
+figure img{width:100%;border-radius:12px;border:1px solid var(--line);background:#fff}
+figcaption{font-size:13px;color:var(--muted);margin-top:8px}
+.steps{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;counter-reset:s}
+.step{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;font-size:14px}
+.step:before{counter-increment:s;content:counter(s);display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--fire);color:#fff;font-weight:700;font-size:12px;margin-bottom:8px}
+.step b{display:block}
+table{width:100%;border-collapse:collapse;font-size:14px;background:var(--panel);border-radius:12px;overflow:hidden}
+th,td{padding:10px 12px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+tr.best td{background:rgba(228,87,46,.09);font-weight:700}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+.twin{display:grid;grid-template-columns:340px 1fr;gap:24px;align-items:start}
+.controls label{display:block;font-weight:600;font-size:14px;margin:16px 0 6px}
+.controls input[type=range]{width:100%;accent-color:var(--fire)}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font:600 13px Inter;cursor:pointer}
+.seg button.on{background:var(--fire);border-color:var(--fire);color:#fff}
+.maps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.maps canvas{width:100%;aspect-ratio:1;image-rendering:pixelated;border-radius:10px;border:1px solid var(--line)}
+.maps div small{display:block;text-align:center;color:var(--muted);font-size:12.5px;margin-top:4px}
+.readout{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px}
+.readout div{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+.readout b{font-size:22px}
+.legend{height:10px;border-radius:5px;background:linear-gradient(90deg,#000004,#420a68,#932667,#dd513a,#fca50a,#fcffa4);margin-top:8px}
+.mono{font-family:'JetBrains Mono',monospace;font-size:13px}
+footer{padding:40px 0;color:var(--muted);font-size:14px}
+@media (max-width:820px){.kpis{grid-template-columns:repeat(2,1fr)}.grid2,.twin{grid-template-columns:1fr}.steps{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<header class="hero"><div class="wrap">
+  <div class="eyebrow">Data Science Project · Remote Sensing · Climate · Digital Twin</div>
+  <h1><span>FireSight</span>: predicting where a wildfire burns tomorrow</h1>
+  <p class="lede">Google Earth Engine satellite and weather data for 18,545 real fires, 24 physics-informed features, five tuned machine learning models, and an interactive digital twin that shows how wind and climate warming change tomorrow's fire.</p>
+  <div class="btns">
+    <a class="btn primary" href="#twin">Try the digital twin</a>
+    <a class="btn" href="FireSight_Paper.pdf">Research paper (PDF)</a>
+    <a class="btn" href="FireSight_Slides.pdf">Slides (PDF)</a>
+    <a class="btn" id="gh" href="#">Code on GitHub</a>
+  </div>
+  <div class="kpis" id="kpis"></div>
+</div></header>
+
+<section><div class="wrap">
+  <h2>The problem</h2>
+  <p class="sub">Satellites already show where fires are burning <em>today</em>. Firefighters need to know where they will be <em>tomorrow</em>. Given today's fire and 11 environmental layers for a 64 km × 64 km area at 1 km resolution, we predict which square kilometres will be burning the next day.</p>
+  <figure><img src="figures/eda_sample_tiles.png" alt="Example input tiles"><figcaption>Three real fires: 11 Earth Engine input layers, today's fire and tomorrow's fire (grey = cloud).</figcaption></figure>
+</div></section>
+
+<section><div class="wrap">
+  <h2>Method</h2>
+  <p class="sub">The original dataset paper treated this as image segmentation. We turned every pixel into a row and gave the models the spatial and physical context they otherwise never see.</p>
+  <div class="steps">
+    <div class="step"><b>GEE data</b>MODIS fire, VIIRS NDVI, SRTM, GRIDMET weather & drought, population</div>
+    <div class="step"><b>Preprocess</b>Drop cloud-masked labels, clip outliers, impute, standardize</div>
+    <div class="step"><b>Engineer</b>Fire density, distance to fire, <i>upwind</i> fire, wind vectors, slope, dryness</div>
+    <div class="step"><b>Model & tune</b>LR, RF, XGBoost, LightGBM, MLP with grouped CV search</div>
+    <div class="step"><b>Explain & simulate</b>SHAP drivers + wind / warming digital twin</div>
+  </div>
+  <div class="grid2" style="margin-top:24px">
+    <figure><img src="figures/eda_spread_drivers.png" alt="Spread drivers"><figcaption>EDA: spread falls off with distance, rises downwind and with drier fuel.</figcaption></figure>
+    <figure><img src="figures/eda_class_balance.png" alt="Class balance"><figcaption>Only about 1 in 90 pixels burns, so accuracy alone is misleading. We report precision, recall, F1 and AUC-PR.</figcaption></figure>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <h2>Results</h2>
+  <p class="sub">All scores are on 6.7 million unseen test pixels at the real fire rate. The threshold for each model was picked on a separate validation split.</p>
+  <div class="tablewrap"><table id="tbl"></table></div>
+  <div class="grid2" style="margin-top:24px">
+    <figure><img src="figures/results_metrics.png" alt="Metrics"><figcaption>Model comparison.</figcaption></figure>
+    <figure><img src="figures/results_curves.png" alt="Curves"><figcaption>Precision-recall and ROC curves.</figcaption></figure>
+    <figure><img src="figures/results_ablation.png" alt="Ablation"><figcaption id="ablcap">Engineered features vs the original 12 inputs.</figcaption></figure>
+    <figure><img src="figures/results_shap_bar.png" alt="SHAP"><figcaption>SHAP: which features drive the prediction (orange = engineered).</figcaption></figure>
+  </div>
+  <figure style="margin-top:24px"><img src="figures/results_maps.png" alt="Maps"><figcaption>Predicted vs actual next-day fire on unseen test fires.</figcaption></figure>
+</div></section>
+
+<section id="twin"><div class="wrap">
+  <h2>Digital twin: what if the wind changes, or the climate warms?</h2>
+  <p class="sub">Pick a real test fire, then change the conditions. Every feature is recomputed from the changed inputs and the trained model predicts tomorrow's fire again.</p>
+  <div class="twin">
+    <div class="card controls">
+      <label>Fire</label><div class="seg" id="tiles"></div>
+      <label>Wind direction: <span class="mono" id="rotv"></span></label>
+      <input type="range" id="rot" min="0" max="7" step="1" value="0">
+      <label>Wind speed: <span class="mono" id="spdv"></span></label>
+      <input type="range" id="spd" min="0" max="3" step="1" value="1">
+      <label>Climate scenario</label><div class="seg" id="clim"></div>
+      <div class="legend"></div><small class="mono" style="color:var(--muted)">0 → 1 probability of burning tomorrow</small>
+    </div>
+    <div>
+      <div class="maps">
+        <div><canvas id="cPrev" width="64" height="64"></canvas><small>Fire today</small></div>
+        <div><canvas id="cPred" width="64" height="64"></canvas><small>Predicted tomorrow</small></div>
+        <div><canvas id="cAct" width="64" height="64"></canvas><small>Actual tomorrow (real wind)</small></div>
+      </div>
+      <div class="readout">
+        <div><small>Predicted area at risk</small><br><b id="area">-</b> km²</div>
+        <div><small>Change vs real conditions</small><br><b id="delta">-</b></div>
+        <div><small>Model</small><br><b id="mname">-</b></div>
+      </div>
+    </div>
+  </div>
+  <div class="grid2" style="margin-top:28px">
+    <figure><img src="figures/twin_wind.png" alt="Wind scenarios"><figcaption>Same fire, wind rotated: the predicted spread follows the wind.</figcaption></figure>
+    <figure><img src="figures/twin_climate.png" alt="Climate scenarios"><figcaption>Same fire under +2 °C and +4 °C warming.</figcaption></figure>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <h2>Run it anywhere with Google Earth Engine</h2>
+  <p class="sub">The repository includes a GEE script that builds the same 12 input layers for any place and day. Outside the US it swaps GRIDMET for ERA5-Land and TerraClimate. The example is set to the Margalla Hills near Islamabad, Pakistan.</p>
+</div></section>
+
+<footer><div class="wrap">Dataset: Next Day Wildfire Spread (Huot et al., IEEE TGRS 2022), built in Google Earth Engine. CC BY 4.0.</div></footer>
+
+<script>
+const GH = "GITHUB_URL";
+document.getElementById('gh').href = GH;
+const fmt = (x, d=3) => x == null ? '–' : Number(x).toFixed(d);
+const ORDER = ["Persistence baseline","Logistic Regression","Random Forest","XGBoost","LightGBM","MLP (Neural Net)"];
+fetch('results.json').then(r => r.json()).then(R => {
+  const best = R.best_model, b = R.models[best];
+  const ab = R.ablation, gain = 100 * (ab.engineered_24_features.auc_pr / ab.original_12_features.auc_pr - 1);
+  document.getElementById('kpis').innerHTML = [
+    [b.f1.toFixed(3), `F1 score (${best})`],
+    [b.auc_pr.toFixed(3), 'AUC-PR (random = ' + R.data.test_fire_rate.toFixed(3) + ')'],
+    ['+' + gain.toFixed(0) + '%', 'AUC-PR gain from engineered features'],
+    [(R.data.train_rows/1e6).toFixed(1) + 'M', 'training pixels from 14,979 fires']
+  ].map(([v, l]) => `<div class="kpi"><b>${v}</b><small>${l}</small></div>`).join('');
+  let h = '<tr><th>Model</th><th>Accuracy</th><th>Precision</th><th>Recall</th><th>F1</th><th>AUC-PR</th><th>ROC-AUC</th><th>CV AUC-PR</th></tr>';
+  for (const m of ORDER) { const r = R.models[m];
+    h += `<tr class="${m===best?'best':''}"><td>${m}</td><td>${fmt(r.accuracy)}</td><td>${fmt(r.precision)}</td><td>${fmt(r.recall)}</td><td>${fmt(r.f1)}</td><td>${fmt(r.auc_pr)}</td><td>${fmt(r.roc_auc)}</td><td>${fmt(r.cv_auc_pr)}</td></tr>`; }
+  document.getElementById('tbl').innerHTML = h;
+  document.getElementById('ablcap').textContent = `Ablation (${ab.model}): AUC-PR ${ab.original_12_features.auc_pr.toFixed(3)} with the original 12 inputs vs ${ab.engineered_24_features.auc_pr.toFixed(3)} with all 24 features.`;
+});
+
+// ---------- digital twin ----------
+const INF = [[0,0,4],[40,11,84],[101,21,110],[159,42,99],[212,72,66],[245,125,21],[250,193,39],[252,255,164]];
+function inferno(t){ const x = Math.min(.999, Math.max(0, t)) * (INF.length-1), i = Math.floor(x), f = x - i;
+  return INF[i].map((c, k) => Math.round(c + f * (INF[i+1][k] - c))); }
+const dec = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+function draw(id, bytes, mode, elev){
+  const cv = document.getElementById(id), ctx = cv.getContext('2d'), im = ctx.createImageData(64, 64);
+  for (let i = 0; i < 4096; i++){ let c;
+    if (mode === 'prob') c = inferno(bytes[i]/255);
+    else { const e = elev ? 60 + elev[i]/255*70 : 40; c = bytes[i] > 127 ? [228,87,46] : [e, e, e]; }
+    im.data.set([...c, 255], i*4); }
+  ctx.putImageData(im, 0, 0);
+}
+fetch('twin.json').then(r => r.json()).then(T => {
+  let ti = 0, climate = T.climates[0];
+  const rot = document.getElementById('rot'), spd = document.getElementById('spd');
+  document.getElementById('mname').textContent = T.model;
+  const seg = (el, items, label, onPick) => { el.innerHTML = '';
+    items.forEach((it, i) => { const b = document.createElement('button'); b.textContent = label(it, i);
+      b.onclick = () => { [...el.children].forEach(c => c.classList.remove('on')); b.classList.add('on'); onPick(it, i); };
+      if (i === 0) b.classList.add('on'); el.appendChild(b); }); };
+  seg(document.getElementById('tiles'), T.tiles, (t, i) => 'Fire ' + (i+1), (t, i) => { ti = i; render(); });
+  seg(document.getElementById('clim'), T.climates, c => c, c => { climate = c; render(); });
+  function render(){
+    const t = T.tiles[ti], r = T.rotations[+rot.value], s = T.speeds[+spd.value];
+    const key = `${climate}|${s.toFixed(1)}|${r}`, base = `${T.climates[0]}|1.0|0`;
+    const keyAlt = `${climate}|${s}|${r}`, baseAlt = `${T.climates[0]}|1|0`;
+    const g = t.grid[key] || t.grid[keyAlt], a = t.area[key] ?? t.area[keyAlt], a0 = t.area[base] ?? t.area[baseAlt];
+    const elev = dec(t.elev);
+    draw('cPrev', dec(t.prev), 'mask', elev); draw('cAct', dec(t.actual), 'mask', elev); draw('cPred', dec(g), 'prob');
+    const dir = Math.round((t.wind_dir + r) % 360);
+    document.getElementById('rotv').textContent = r === 0 ? `real (from ${dir}°)` : `from ${dir}° (rotated ${r}°)`;
+    document.getElementById('spdv').textContent = `${s}× real (${(t.wind_speed*s).toFixed(1)} m/s)`;
+    document.getElementById('area').textContent = a;
+    const d = a0 ? 100*(a-a0)/a0 : 0;
+    document.getElementById('delta').textContent = (d >= 0 ? '+' : '') + d.toFixed(0) + '%';
+  }
+  rot.oninput = spd.oninput = render; render();
+});
+</script>
+</body>
+</html>

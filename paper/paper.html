@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>FireSight Paper</title>
+<style>
+@page{size:Letter;margin:0.75in 0.62in 0.9in}
+body{font-family:"Times New Roman",Times,serif;font-size:10pt;line-height:1.22;color:#000;margin:0}
+.title{text-align:center;font-size:22pt;line-height:1.15;margin:0 0 10px}
+.author{text-align:center;font-size:11pt;margin-bottom:2px}
+.affil{text-align:center;font-size:9pt;font-style:italic;margin-bottom:14px}
+.cols{column-count:2;column-gap:0.24in;text-align:justify;hyphens:auto}
+.abstract,.keywords{font-weight:bold;font-size:9pt}
+.abstract i,.keywords i{font-weight:bold}
+h2{font-size:10pt;font-variant:small-caps;text-align:center;margin:12px 0 5px;font-weight:normal;letter-spacing:.02em}
+h3{font-size:10pt;font-style:italic;font-weight:normal;margin:8px 0 3px}
+p{margin:0 0 5px;text-indent:1em}
+p.ni{text-indent:0}
+figure{margin:6px 0 8px;break-inside:avoid;text-align:center}
+figure img{width:100%}
+figure.wide{column-span:all;margin:6px 0 10px}
+figure.wide img{width:96%}
+figcaption{font-size:8pt;text-align:justify;margin-top:3px}
+table{border-collapse:collapse;font-size:8pt;margin:4px auto 4px;break-inside:avoid}
+table.wide{column-span:all;width:100%}
+th,td{padding:1.5px 4px;text-align:center}
+thead tr:first-child th{border-top:1.2px solid #000}
+thead tr:last-child th{border-bottom:.7px solid #000}
+tbody tr:last-child td{border-bottom:1.2px solid #000}
+td:first-child,th:first-child{text-align:left}
+.tcap{font-size:8pt;text-align:center;font-variant:small-caps;margin-top:6px;break-after:avoid}
+b.best{font-weight:bold}
+ol.refs{font-size:8pt;padding-left:2.2em;margin:0}
+ol.refs li{margin-bottom:2px;text-align:left}
+.eq{text-align:center;margin:4px 0;font-style:italic}
+ul{margin:2px 0 5px;padding-left:1.4em}
+li{margin-bottom:1px}
+code{font-family:Courier,monospace;font-size:8.5pt}
+</style></head><body>
+
+<div class="title">FireSight: Physics-Informed Spatial Features and a Digital Twin for Next-Day Wildfire Spread Prediction from Google Earth Engine Data</div>
+<div class="author">Burhan Khatri</div>
+<div class="affil">Data Science Course Project &middot; Code and data: <span id="ghurl">GITHUB_URL</span> &middot; Live demo: <span id="liveurl">LIVE_URL</span></div>
+
+<div class="cols">
+<p class="ni abstract"><i>Abstract</i>&mdash;Satellites show where a wildfire burns today, but responders need to know where it will burn tomorrow. We study next-day wildfire spread on the Next Day Wildfire Spread dataset, 18,545 fire events across the United States (2012&ndash;2020) whose 11 environmental input layers were assembled in Google Earth Engine. We recast the task from image segmentation to pixel classification and add 12 spatial and physics-informed features, including fire density at three scales, distance to the nearest active fire, and the fire density sampled <i>upwind</i> of each pixel using the local wind direction. Five models (logistic regression, random forest, XGBoost, LightGBM and a multilayer perceptron) are tuned with fire-grouped cross-validation and evaluated against a persistence baseline on 6.7 million unseen test pixels at the true fire rate of 1.25%. The tuned random forest reaches an F1 of 0.343 and an area under the precision-recall curve (AUC-PR) of 0.258, against 0.107 for persistence and 0.225 reported for the random forest of the original study. An ablation shows the engineered features raise AUC-PR by 58% (0.163 to 0.258). SHAP analysis identifies distance to the fire front and local fire density as the dominant drivers. Finally, we build a digital twin that re-runs the model under changed wind and climate-warming scenarios; it predicts a 7.5% larger area at risk under +2&nbsp;&deg;C and 20.4% under +4&nbsp;&deg;C. We release the code, a reproducible Earth Engine export script that also works outside the US (e.g., Pakistan), and an interactive web demo.</p>
+<p class="ni keywords"><i>Index Terms</i>&mdash;Wildfire spread, remote sensing, Google Earth Engine, machine learning, feature engineering, SHAP, digital twin, climate change.</p>
+
+<h2>I. Introduction</h2>
+<p>Wildfire activity has grown in extent and severity in many regions, and attribution studies link a large part of this growth to a warmer, drier climate [1], [2]. Operational products such as the MODIS active-fire detections [3] map where fires are burning on a given day, but resource planning, evacuation and fire-break placement depend on where a fire will be on the next day. Physical spread models such as Rothermel's [4] need detailed fuel inputs that are rarely available at scale, which motivates data-driven alternatives [5].</p>
+<p>Huot <i>et al.</i> [6] released the Next Day Wildfire Spread (NDWS) dataset, built with Google Earth Engine (GEE) [7], and framed the problem as image segmentation. Their convolutional autoencoder achieved an AUC-PR of 28.4%, only modestly above a random forest (22.5%) and logistic regression (19.8%) that saw each pixel with its eight neighbors. This small gap suggests that what matters most is <i>spatial context and fire physics</i>, which per-pixel models largely lack, rather than model capacity.</p>
+<p><b>Research problem.</b> Given today's active-fire mask and 11 environmental layers for a 64&nbsp;km&nbsp;&times;&nbsp;64&nbsp;km area at 1&nbsp;km resolution, predict which pixels will burn the next day. <b>Objectives:</b> (i) build a clean, leakage-aware pixel dataset; (ii) design features that encode fire proximity and wind-driven spread; (iii) compare at least four tuned machine learning models fairly on the true class balance; (iv) explain the learned drivers; and (v) use the model as a digital twin for wind and warming scenarios.</p>
+<p><b>Contributions.</b> (1) Twelve spatial and physics-informed features, including a novel <i>upwind fire</i> feature, that raise AUC-PR by 58% in ablation. (2) A comparison of five models plus a persistence baseline, with fire-grouped tuning and threshold selection on a separate split. (3) SHAP-based interpretation. (4) An interactive digital twin with climate scenarios. (5) A GEE script that rebuilds the inputs for any region, including Pakistan.</p>
+
+<h2>II. Related Work</h2>
+<p>Machine learning has been applied to fire occurrence, susceptibility, burned-area mapping and spread [5]. For spread, NDWS [6] provides daily snapshots of fire masks with weather, terrain, vegetation and population layers. WildfireSpreadTS [8] extends this idea to multi-day time series and finds that additional temporal context helps deep models. Gradient-boosted trees [9], [10] and random forests [11] are strong baselines for tabular remote-sensing data, and SHAP [12] is widely used to explain them. Digital twins, virtual replicas that are run under what-if scenarios [13], are increasingly proposed for environmental hazards. Our work differs from [6] by keeping fast tabular models and moving the spatial reasoning into explicit, physically motivated features, and by using the trained model for scenario simulation.</p>
+
+<h2>III. Dataset</h2>
+<p>NDWS [6] contains 18,545 fire events over the contiguous United States from 2012 to 2020. Each sample is a 64&nbsp;&times;&nbsp;64 grid at 1&nbsp;km resolution with today's fire mask, tomorrow's fire mask (the target) and 11 inputs, all exported from GEE: elevation (SRTM), wind direction and speed, minimum and maximum temperature, specific humidity and precipitation (GRIDMET [14]), the Palmer Drought Severity Index (PDSI) and energy release component (ERC, a fuel-dryness index), NDVI (VIIRS) and population density (GPWv4). Fire masks come from MODIS MOD14A1 [3]. The authors split the data by week into train, evaluation and test sets in an 8:1:1 ratio [6], yielding 14,979, 1,877 and 1,689 tiles. We use the public zarr copy of the data hosted on Hugging Face, which contains the same arrays.</p>
+<p>Labels take three values: fire (1), no fire (0) and missing (&minus;1, mostly cloud or smoke). Table&nbsp;I summarizes each split. Fire is rare: about one pixel in 90 burns the next day, which makes accuracy a misleading metric.</p>
+<table><caption class="tcap">Table I. Dataset splits</caption>
+<thead><tr><th>Split</th><th>Tiles</th><th>Pixels</th><th>Fire %</th><th>Missing %</th></tr></thead>
+<tbody><tr><td>Train</td><td>14,979</td><td>61.35 M</td><td>1.07</td><td>2.35</td></tr>
+<tr><td>Eval</td><td>1,877</td><td>7.69 M</td><td>1.33</td><td>2.44</td></tr>
+<tr><td>Test</td><td>1,689</td><td>6.92 M</td><td>1.22</td><td>2.75</td></tr></tbody></table>
+
+<h2>IV. Methodology</h2>
+<figure class="wide"><img src="../outputs/figures/eda_sample_tiles.png"><figcaption>Fig. 1. Three example tiles from the test split: the 11 Earth Engine inputs, today's fire and tomorrow's fire (orange = fire, grey = missing).</figcaption></figure>
+<h3>A. Preprocessing</h3>
+<p class="ni"><i>Missing values.</i> Pixels whose next-day label is missing are removed from training and evaluation, as in [6]. A missing value in today's fire mask is treated as "no fire". The input layers contain no NaN values, but the pipeline median-imputes any that appear. <i>Outliers.</i> Each layer is clipped to a physically plausible range (e.g., ERC to [0,&nbsp;110], wind speed to [0,&nbsp;12]&nbsp;m/s), which removes interpolation artifacts such as negative precipitation. <i>Standardization.</i> Logistic regression and the MLP use z-score standardization inside a scikit-learn pipeline [15], fitted on training data only; tree models use raw values.</p>
+<h3>B. Feature Engineering</h3>
+<p>Each pixel becomes one row with the 11 inputs, today's fire flag, and 12 engineered features:</p>
+<ul>
+<li><i>Fire density</i> at 3, 7 and 15&nbsp;km: the fraction of burning pixels in a square window (a box filter on today's mask).</li>
+<li><i>Distance to fire</i>: Euclidean distance transform to the nearest burning pixel, capped at 32&nbsp;km.</li>
+<li><i>Upwind fire</i> at 2 and 5&nbsp;km: the 7&nbsp;km fire density sampled at the point <i>k</i>&nbsp;km upwind, i.e., at row <i>r</i>&nbsp;&minus;&nbsp;<i>k</i>&nbsp;cos&nbsp;&theta;, column <i>c</i>&nbsp;+&nbsp;<i>k</i>&nbsp;sin&nbsp;&theta;, where &theta; is the pixel's meteorological wind direction (the direction the wind comes from). A pixel downwind of a fire gets a high value.</li>
+<li><i>Wind vector</i> <i>u</i>&nbsp;=&nbsp;&minus;<i>v<sub>s</sub></i>&nbsp;sin&nbsp;&theta;, <i>v</i>&nbsp;=&nbsp;&minus;<i>v<sub>s</sub></i>&nbsp;cos&nbsp;&theta;, which removes the 0/360&deg; discontinuity.</li>
+<li><i>Temperature range</i> (max&nbsp;&minus;&nbsp;min), <i>terrain slope</i> from the elevation gradient, <i>fuel dryness</i> = NDVI&nbsp;&times;&nbsp;ERC (fuel amount times dryness), and <i>wind toward fire front</i> = wind speed &times; upwind fire.</li>
+</ul>
+<p>The feature code is covered by unit tests, for example that a pixel 5&nbsp;km south of a fire sees it as upwind under a north wind, while a pixel north of it does not.</p>
+<h3>C. Sampling and Class Imbalance</h3>
+<p>Using all 61 million training pixels is unnecessary and dominated by easy negatives. We keep every training fire pixel and draw three non-fire pixels per fire pixel: half within 8&nbsp;km of an active fire (hard negatives) and half at random. This gives 2.63 million rows with a 25% fire rate. Because the training rate differs from the real rate, the decision threshold of each model is chosen to maximize F1 on the <i>full, unbalanced</i> evaluation split (7.5 million pixels). All reported metrics use the full test split (6.73 million pixels, 1.25% fire).</p>
+<h3>D. Models and Hyper-parameter Tuning</h3>
+<p>We compare logistic regression (LR), random forest (RF) [11], XGBoost [9], LightGBM [10] and a multilayer perceptron (MLP), plus a persistence baseline that predicts tomorrow's fire equals today's. Each model is tuned with randomized search (8&ndash;12 configurations; 6 for the MLP) on a 200,000-row subsample using three-fold <i>GroupKFold</i> grouped by tile, so that pixels of one fire never appear in both training and validation folds. The search maximizes average precision. The best configuration is refit on 1.5 million rows. Table&nbsp;II lists the selected hyper-parameters.</p>
+<table><caption class="tcap">Table II. Selected hyper-parameters</caption>
+<thead><tr><th>Model</th><th>Best configuration</th></tr></thead>
+<tbody><tr><td>LR</td><td style="text-align:left">C = 0.985, no class weights</td></tr>
+<tr><td>RF</td><td style="text-align:left">157 trees, depth 23, min leaf 37, sqrt features</td></tr>
+<tr><td>XGBoost</td><td style="text-align:left">391 trees, depth 9, lr 0.124, colsample 0.53</td></tr>
+<tr><td>LightGBM</td><td style="text-align:left">585 trees, 206 leaves, lr 0.164, &lambda; 9.3</td></tr>
+<tr><td>MLP</td><td style="text-align:left">128-64-32, &alpha; 1.3e-4, lr 1.6e-3, batch 512</td></tr></tbody></table>
+<h3>E. Evaluation Metrics</h3>
+<p>We report accuracy, precision, recall, F1 and ROC-AUC, and use AUC-PR (average precision) as the primary metric because it is informative under heavy class imbalance [16]. A random classifier has an AUC-PR equal to the fire rate (0.0125).</p>
+<h3>F. Explainability and Digital Twin</h3>
+<p>We compute SHAP values [12] with TreeExplainer on 4,000 test pixels. For the digital twin we take four distinct, growing test fires, modify the raw inputs (rotate the wind in 45&deg; steps, scale wind speed by 0.5&ndash;2&times;, or apply a warming scenario), recompute every engineered feature and predict again. The +2&nbsp;&deg;C and +4&nbsp;&deg;C scenarios add the temperature change to both temperature layers, add 2 ERC units per degree, reduce specific humidity by 3% per degree and lower PDSI by 0.25 per degree. These perturbations are illustrative sensitivity tests, not climate projections.</p>
+
+<h2>V. Exploratory Data Analysis</h2>
+<figure><img src="../outputs/figures/eda_spread_drivers.png"><figcaption>Fig. 2. Next-day burn rate in the balanced training sample against distance to today's fire, position relative to the wind, and fuel dryness (ERC).</figcaption></figure>
+<p>Fig.&nbsp;2 shows the three strongest patterns. The chance that a pixel burns tomorrow drops from 78% on today's fire to about 15% at 5&nbsp;km. The second rise near 9&ndash;12&nbsp;km reflects other fires in the same tile. Among pixels 1&ndash;4&nbsp;km from a fire, those with fire upwind burn about 1.3 to 1.9 times as often as those without, in every wind class. Burn rate also rises with ERC, from about 21% for moist fuel to over 55% for very dry fuel. Distributions of the weather inputs overlap strongly between fire and non-fire pixels (Fig.&nbsp;3), so weather alone separates the classes poorly. Spearman correlations with the target are highest for 7&nbsp;km fire density (0.51), 3&nbsp;km fire density (0.49), upwind fire at 2&nbsp;km (0.48) and wind toward the fire front (0.47), all engineered features, compared with 0.38 for today's raw fire flag.</p>
+<figure><img src="../outputs/figures/eda_distributions.png"><figcaption>Fig. 3. Distributions of eight raw inputs for fire and non-fire pixels (balanced sample).</figcaption></figure>
+<p>During EDA we also found that the dataset contains overlapping crops of the same large fire: of 1,689 test tiles only 1,648 are exact-unique, and further tiles differ only by a spatial shift. This matters for validation design (Section&nbsp;VII).</p>
+
+<h2>VI. Results</h2>
+<table class="wide"><caption class="tcap">Table III. Test-set results on 6,727,699 pixels (fire rate 1.25%). Best value per column in bold.</caption>
+<thead><tr><th>Model</th><th>Accuracy</th><th>Precision</th><th>Recall</th><th>F1</th><th>AUC-PR</th><th>ROC-AUC</th><th>CV AUC-PR</th><th>Threshold</th><th>Train time (s)</th></tr></thead>
+<tbody>
+<tr><td>Persistence baseline</td><td><b>0.985</b></td><td><b>0.357</b></td><td>0.273</td><td>0.309</td><td>0.107</td><td>0.633</td><td>&ndash;</td><td>0.5</td><td>0</td></tr>
+<tr><td>Logistic Regression</td><td>0.978</td><td>0.272</td><td>0.453</td><td>0.340</td><td>0.227</td><td><b>0.901</b></td><td>0.640</td><td>0.443</td><td>15</td></tr>
+<tr><td><b>Random Forest</b></td><td>0.976</td><td>0.264</td><td><b>0.491</b></td><td><b>0.343</b></td><td><b>0.258</b></td><td>0.875</td><td>0.745</td><td>0.459</td><td>618</td></tr>
+<tr><td>XGBoost</td><td>0.977</td><td>0.258</td><td>0.445</td><td>0.326</td><td>0.228</td><td>0.866</td><td>0.831</td><td>0.416</td><td>157</td></tr>
+<tr><td>LightGBM</td><td>0.975</td><td>0.237</td><td>0.465</td><td>0.314</td><td>0.215</td><td>0.845</td><td><b>0.848</b></td><td>0.327</td><td>959</td></tr>
+<tr><td>MLP (Neural Net)</td><td>0.974</td><td>0.198</td><td>0.362</td><td>0.256</td><td>0.116</td><td>0.790</td><td>0.742</td><td>0.568</td><td>259</td></tr>
+</tbody></table>
+<p>Table&nbsp;III and Fig.&nbsp;4 compare all models. Every learned model except the MLP roughly doubles the persistence AUC-PR. Random forest is best on AUC-PR (0.258), F1 (0.343) and recall (0.491). It finds 41,436 of the 84,331 fire pixels while raising 115,686 false alarms out of 6.64 million non-fire pixels (Fig.&nbsp;5). Logistic regression is a close second on F1 (0.340) and best on ROC-AUC (0.901), while training 40 times faster. Accuracy is above 0.97 for every model and highest for persistence, which shows why it cannot rank models here.</p>
+<figure><img src="../outputs/figures/results_metrics.png"><figcaption>Fig. 4. Precision, recall, F1 and AUC-PR of all models on the test split.</figcaption></figure>
+<figure><img src="../outputs/figures/results_curves.png"><figcaption>Fig. 5a. Precision-recall and ROC curves. The dotted line in the left panel is a random classifier.</figcaption></figure>
+<figure><img src="../outputs/figures/results_confusion.png" style="width:62%"><figcaption>Fig. 5b. Random forest confusion matrix at the threshold chosen on the evaluation split.</figcaption></figure>
+<p><b>Comparison with the original study.</b> Huot <i>et al.</i> [6] report AUC-PR of 11.5% (persistence), 19.8% (LR), 22.5% (RF) and 28.4% (convolutional autoencoder). Our persistence baseline reproduces their precision (35.7%) and recall (27.3%) exactly, which supports that the two evaluations are comparable, although they score random 32&nbsp;km crops and we score full tiles. With the engineered features, our LR improves from 19.8% to 22.7% and our RF from 22.5% to 25.8%. This closes most of the gap to their deep model without a GPU: our full pipeline trains on a laptop CPU.</p>
+<p><b>Ablation.</b> Retraining the tuned random forest on only the original 12 inputs gives AUC-PR 0.163 and F1 0.311 (Fig.&nbsp;6). The engineered features raise AUC-PR by 58% and F1 by 10%, and shift the operating point toward recall (0.270 to 0.491), which matters more than precision when missing a fire is costlier than a false alarm.</p>
+<figure><img src="../outputs/figures/results_ablation.png" style="width:85%"><figcaption>Fig. 6. Random forest with the original 12 inputs vs. all 24 features.</figcaption></figure>
+<p><b>Explainability.</b> SHAP (Fig.&nbsp;7) ranks distance to fire far above every other feature (mean |SHAP| 0.87), followed by 7&nbsp;km and 3&nbsp;km fire density (0.21, 0.18). Next come elevation, ERC, NDVI, population and humidity, each between 0.14 and 0.17. The top three drivers are all engineered features. Fire is predicted to spread mainly around the current front, and is modulated by terrain, fuel dryness and vegetation. The upwind features rank lower in SHAP than in correlation because much of their information is shared with the density features.</p>
+<figure><img src="../outputs/figures/results_shap_bar.png" style="width:82%"><figcaption>Fig. 7. Mean absolute SHAP values (XGBoost). Orange bars are engineered features.</figcaption></figure>
+<figure class="wide"><img src="../outputs/figures/results_maps.png" style="width:70%"><figcaption>Fig. 8. Next-day predictions on five distinct unseen test fires. The models place risk around the active front and capture most growth, but they cannot anticipate spot fires that appear far from today's front (fourth row).</figcaption></figure>
+
+<h2>VII. Discussion</h2>
+<p><b>Why do boosted trees and the MLP fall behind?</b> XGBoost and LightGBM have the highest cross-validation AUC-PR (0.83, 0.85) but lower test scores than RF and even LR. Two causes interact. First, the CV score is computed on the balanced sample (25% fire), so its level is not comparable with the test score (1.25% fire). Second, and more important, the gap between CV and test varies by model: grouping by tile does not stop overlapping crops of the same fire, or neighbouring days of one fire, from falling into different folds. Flexible models that memorize fire-specific patterns are therefore rewarded in CV but generalize worse to fires from unseen weeks. RF's averaging and LR's simplicity are more robust to this. Grouping by fire event and week would be a better validation design. The MLP stopped early after at most 60 epochs with convergence warnings. Its weak result reflects a limited training budget on a CPU, not a ceiling for neural networks; the autoencoder in [6], trained for 1,000 epochs on GPUs, remains the strongest model.</p>
+<p><b>Precision&ndash;recall trade-off.</b> At F1-optimal thresholds the random forest flags about 2.8 non-fire pixels per correct fire pixel. In practice the threshold can be tuned to the user: a lower one for evacuation planning (high recall) and a higher one for allocating scarce crews (high precision). The precision-recall curves (Fig.&nbsp;5a) make this choice explicit.</p>
+
+<h2>VIII. Digital Twin: Wind and Climate Scenarios</h2>
+<p>A digital twin needs a model that responds sensibly when inputs move outside the observed range. Our first version multiplied ERC by up to 1.25. Under that change XGBoost and LightGBM predicted <i>less</i> fire under warming (e.g., LightGBM 213 to 49&nbsp;km<sup>2</sup>), because tree ensembles cannot extrapolate and the scaled inputs left the training range. We therefore (i) use small additive changes that stay inside the training range, and (ii) drive the twin with logistic regression. LR is monotone in each input, and its test AUC-PR (0.227) is on par with XGBoost (0.228).</p>
+<table><caption class="tcap">Table IV. Digital twin: predicted area at risk (km<sup>2</sup>)</caption>
+<thead><tr><th>Fire</th><th>Real</th><th>Wind &times;2</th><th>Wind rotated</th><th>+2&nbsp;&deg;C</th><th>+4&nbsp;&deg;C</th></tr></thead>
+<tbody><tr><td>A</td><td>248</td><td>243</td><td>242&ndash;283</td><td>261</td><td>290</td></tr>
+<tr><td>B</td><td>168</td><td>171</td><td>166&ndash;198</td><td>181</td><td>205</td></tr>
+<tr><td>C</td><td>244</td><td>229</td><td>239&ndash;279</td><td>256</td><td>282</td></tr>
+<tr><td>D</td><td>301</td><td>1,082</td><td>253&ndash;355</td><td>335</td><td>380</td></tr>
+<tr><td>Mean</td><td>240</td><td>431</td><td>&ndash;</td><td>258 (+7.5%)</td><td>289 (+20.4%)</td></tr></tbody></table>
+<p>Table&nbsp;IV shows that warming raises the predicted area at risk for every fire, by 7.5% on average at +2&nbsp;&deg;C and 20.4% at +4&nbsp;&deg;C. Rotating the wind moves risk toward the downwind side and changes the area by up to 18%. Doubling the wind speed has little effect on three fires but more than triples the area at risk for fire D, which already sat in strong wind next to dry fuel. This non-linear response is what makes scenario testing useful. Fig.&nbsp;9 shows the climate scenarios for fire A, and the interactive version on the project website lets users change wind and warming on all four fires.</p>
+<figure><img src="../outputs/figures/twin_climate.png"><figcaption>Fig. 9. Digital twin: the same fire under today's conditions, +2 &deg;C and +4 &deg;C warming (cyan = today's fire).</figcaption></figure>
+
+<h2>IX. Application Beyond the Training Region</h2>
+<p>The repository includes a GEE script that rebuilds the 12 model inputs for any location and date. Inside the US it uses the original sources. Elsewhere it replaces GRIDMET with ERA5-Land [17] and TerraClimate [18], derives wind direction and specific humidity from ERA5-Land variables, and approximates ERC from temperature, humidity and drought. The example is set to the Margalla Hills near Islamabad, Pakistan, where forest fires recur in the dry season. Applying the US-trained model there would need local validation against MODIS/VIIRS detections, because fuels and climate differ. We list this as future work.</p>
+
+<h2>X. Limitations</h2>
+<ul>
+<li>Labels come from 1&nbsp;km MODIS detections taken once a day, which miss small fires and include cloud gaps.</li>
+<li>Only one day of history is used. Multi-day inputs [8] would capture fire momentum.</li>
+<li>Validation groups by tile but not by fire event or week, which inflates CV for flexible models (Section&nbsp;VII).</li>
+<li>Digital-twin scenarios are sensitivity tests with a linear model, not physically coupled climate projections.</li>
+</ul>
+
+<h2>XI. Conclusion</h2>
+<p>Next-day wildfire spread is a heavily imbalanced, spatial problem. By turning the task into pixel classification with explicit spatial and physics-informed features, a tuned random forest reaches AUC-PR 0.258 and F1 0.343 on 6.7 million unseen pixels. This improves on the persistence baseline by 141% and on the original study's random forest, using only a laptop CPU. The features alone add 58% AUC-PR. SHAP confirms that proximity to the fire front dominates, with fuel dryness, terrain and vegetation as secondary drivers. A digital twin built on the trained model makes the results actionable: it shows how wind and warming would change tomorrow's risk. Future work will add multi-day history, validate by fire event, and test the GEE pipeline on fires in Pakistan.</p>
+
+<h2>Code and Data Availability</h2>
+<p class="ni">All code (Jupyter notebook and Python modules), results, figures and the GEE script are at <span class="gh">GITHUB_URL</span>. The dataset is available from Kaggle (fantineh/next-day-wildfire-spread) and Hugging Face (TheRootOf3/next-day-wildfire-spread). The manuscript was organized following the PaperOrchestra workflow [19] (idea and experiment log in <code>paper/raw_materials</code>).</p>
+
+<h2>References</h2>
+<ol class="refs">
+<li>J. T. Abatzoglou and A. P. Williams, &ldquo;Impact of anthropogenic climate change on wildfire across western US forests,&rdquo; <i>Proc. Nat. Acad. Sci.</i>, vol. 113, no. 42, pp. 11770&ndash;11775, 2016.</li>
+<li>M. W. Jones <i>et al.</i>, &ldquo;Global and regional trends and drivers of fire under climate change,&rdquo; <i>Rev. Geophys.</i>, vol. 60, no. 3, Art. no. e2020RG000726, 2022.</li>
+<li>L. Giglio, W. Schroeder, and C. O. Justice, &ldquo;The collection 6 MODIS active fire detection algorithm and fire products,&rdquo; <i>Remote Sens. Environ.</i>, vol. 178, pp. 31&ndash;41, 2016.</li>
+<li>R. C. Rothermel, &ldquo;A mathematical model for predicting fire spread in wildland fuels,&rdquo; USDA Forest Service, Ogden, UT, USA, Res. Pap. INT-115, 1972.</li>
+<li>P. Jain, S. C. P. Coogan, S. G. Subramanian, M. Crowley, S. Taylor, and M. D. Flannigan, &ldquo;A review of machine learning applications in wildfire science and management,&rdquo; <i>Environ. Rev.</i>, vol. 28, no. 4, pp. 478&ndash;505, 2020.</li>
+<li>F. Huot, R. L. Hu, N. Goyal, T. Sankar, M. Ihme, and Y.-F. Chen, &ldquo;Next day wildfire spread: A machine learning dataset to predict wildfire spreading from remote-sensing data,&rdquo; <i>IEEE Trans. Geosci. Remote Sens.</i>, vol. 60, 2022, doi: 10.1109/TGRS.2022.3192974.</li>
+<li>N. Gorelick, M. Hancher, M. Dixon, S. Ilyushchenko, D. Thau, and R. Moore, &ldquo;Google Earth Engine: Planetary-scale geospatial analysis for everyone,&rdquo; <i>Remote Sens. Environ.</i>, vol. 202, pp. 18&ndash;27, 2017.</li>
+<li>S. Gerard, Y. Zhao, and J. Sullivan, &ldquo;WildfireSpreadTS: A dataset of multi-modal time series for wildfire spread prediction,&rdquo; in <i>Proc. Adv. Neural Inf. Process. Syst. (NeurIPS) Datasets and Benchmarks Track</i>, 2023.</li>
+<li>T. Chen and C. Guestrin, &ldquo;XGBoost: A scalable tree boosting system,&rdquo; in <i>Proc. 22nd ACM SIGKDD Int. Conf. Knowl. Discov. Data Min.</i>, 2016, pp. 785&ndash;794.</li>
+<li>G. Ke <i>et al.</i>, &ldquo;LightGBM: A highly efficient gradient boosting decision tree,&rdquo; in <i>Proc. Adv. Neural Inf. Process. Syst.</i>, vol. 30, 2017, pp. 3146&ndash;3154.</li>
+<li>L. Breiman, &ldquo;Random forests,&rdquo; <i>Mach. Learn.</i>, vol. 45, no. 1, pp. 5&ndash;32, 2001.</li>
+<li>S. M. Lundberg and S.-I. Lee, &ldquo;A unified approach to interpreting model predictions,&rdquo; in <i>Proc. Adv. Neural Inf. Process. Syst.</i>, vol. 30, 2017, pp. 4765&ndash;4774.</li>
+<li>F. Tao, H. Zhang, A. Liu, and A. Y. C. Nee, &ldquo;Digital twin in industry: State-of-the-art,&rdquo; <i>IEEE Trans. Ind. Informat.</i>, vol. 15, no. 4, pp. 2405&ndash;2415, 2019.</li>
+<li>J. T. Abatzoglou, &ldquo;Development of gridded surface meteorological data for ecological applications and modelling,&rdquo; <i>Int. J. Climatol.</i>, vol. 33, no. 1, pp. 121&ndash;131, 2013.</li>
+<li>F. Pedregosa <i>et al.</i>, &ldquo;Scikit-learn: Machine learning in Python,&rdquo; <i>J. Mach. Learn. Res.</i>, vol. 12, pp. 2825&ndash;2830, 2011.</li>
+<li>T. Saito and M. Rehmsmeier, &ldquo;The precision-recall plot is more informative than the ROC plot when evaluating binary classifiers on imbalanced datasets,&rdquo; <i>PLoS ONE</i>, vol. 10, no. 3, Art. no. e0118432, 2015.</li>
+<li>J. Mu&ntilde;oz-Sabater <i>et al.</i>, &ldquo;ERA5-Land: A state-of-the-art global reanalysis dataset for land applications,&rdquo; <i>Earth Syst. Sci. Data</i>, vol. 13, no. 9, pp. 4349&ndash;4383, 2021.</li>
+<li>J. T. Abatzoglou, S. Z. Dobrowski, S. A. Parks, and K. C. Hegewisch, &ldquo;TerraClimate, a high-resolution global dataset of monthly climate and climatic water balance from 1958&ndash;2015,&rdquo; <i>Sci. Data</i>, vol. 5, Art. no. 170191, 2018.</li>
+<li>Y. Song, Y. Song, T. Pfister, and J. Yoon, &ldquo;PaperOrchestra: A multi-agent framework for automated AI research paper writing,&rdquo; arXiv:2604.05018, 2026.</li>
+</ol>
+</div>
+</body></html>
